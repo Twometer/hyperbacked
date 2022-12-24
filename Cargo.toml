@@ -6,4 +6,9 @@ authors = ["Twometer"]
 
 [dependencies]
 lazy_static = "1.4"
+anyhow = "1.0"
+pbkdf2 = { version = "0.11", features = ["std"] }
+aes-gcm = { version = "0.10", features = ["std"] }
 rand = "0.8"
+base64 = "0.20"
+bytes = "1.3"
