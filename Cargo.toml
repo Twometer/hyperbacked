@@ -5,3 +5,5 @@ edition = "2021"
 authors = ["Twometer"]
 
 [dependencies]
+lazy_static = "1.4"
+rand = "0.8"
