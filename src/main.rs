@@ -8,6 +8,7 @@ use crate::{
 mod backup;
 mod crypto;
 mod passphrase;
+mod printer;
 
 fn main() -> anyhow::Result<()> {
     let pass1 = gen_passphrase(8);
@@ -41,9 +42,17 @@ fn main() -> anyhow::Result<()> {
         },
     )?;
 
-    let backup_shares: Vec<&[u8]> = backup.iter().map(|backup| &backup.data[..]).collect();
+    // Now, let's do some printing magic
+    let pdfs = printer::print_pdfs(&backup[..], "Test Backup 01")?;
+    let mut i = 0;
+    for pdf in pdfs {
+        pdf.render_to_file(format!("test-share-{}.pdf", i))?;
+        i += 1;
+    }
 
     // And let's see if we can decode it again
+    let backup_shares: Vec<&[u8]> = backup.iter().map(|backup| &backup.data[..]).collect();
+
     println!("Decoded 1: {}", recover_backup(&backup_shares, &pass1)?);
     println!("Decoded 2: {}", recover_backup(&backup_shares, &pass2)?);
     println!("Decoded 3: {}", recover_backup(&backup_shares, &pass3)?);

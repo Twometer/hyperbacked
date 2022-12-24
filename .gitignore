@@ -11,3 +11,4 @@ Cargo.lock
 
 # Test files
 test*.bin
+test*.pdf
