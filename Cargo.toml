@@ -12,3 +12,4 @@ aes-gcm = { version = "0.10", features = ["std"] }
 rand = "0.8"
 base64 = "0.20"
 bytes = "1.3"
+sharks = "0.5"
