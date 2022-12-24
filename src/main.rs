@@ -1,11 +1,8 @@
-use std::fs;
-
 use passphrase::gen_passphrase;
-use sharks::{Share, Sharks};
 
 use crate::{
     backup::{create_backup, recover_backup},
-    crypto::{decrypt_secret, encrypt_secrets, Secret},
+    crypto::Secret,
 };
 
 mod backup;
