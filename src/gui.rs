@@ -312,7 +312,7 @@ impl HyperbackedApp {
 
     fn recover_backup_page(&self) -> Element<Message> {
         let idle = row![
-            text("Please scan the QR codes from all required secret shares"),
+            text("Please scan the QR codes from all required backup shards"),
             horizontal_space(Length::Fill),
             button(text("Scan code"))
                 .padding(10)
@@ -328,7 +328,7 @@ impl HyperbackedApp {
                 .enumerate()
                 .map(|(num, code)| {
                     container(text(format!(
-                        "Secret share #{} ({} bytes)",
+                        "Backup shard #{} ({} bytes)",
                         num + 1,
                         code.len()
                     )))
@@ -401,8 +401,10 @@ impl HyperbackedApp {
             _ => column![text("Backup failed to generate.")].into(),
         };
         column![
-            text("Your backup files").size(30),
-            vertical_space(Length::Units(40)),
+            text("Your backup shards").size(30),
+            vertical_space(Length::Units(20)),
+            text("You can export each of the shards below as a PDF and distribute them to trusted people."),
+            vertical_space(Length::Units(20)),
             scrollable(container(task_list).padding(20)),
             vertical_space(Length::Fill),
             row![
@@ -428,7 +430,7 @@ impl HyperbackedApp {
     }
 
     fn create_backup_page(&self) -> Element<Message> {
-        let mut next_button = button("Create").padding([10, 40]);
+        let mut next_button = button("Encrypt").padding([10, 40]);
         if !self.passphrase.trim().is_empty() && !self.secret.trim().is_empty() {
             next_button = next_button.on_press(Message::CreateBackup)
         }
@@ -552,7 +554,7 @@ impl Display for BackupType {
         match self {
             BackupType::Standard => write!(f, "Standard"),
             BackupType::Distributed { min, max } => {
-                write!(f, "Distributed ({} of {} shares required)", min, max)
+                write!(f, "Distributed ({} of {} shards required)", min, max)
             }
         }
     }
