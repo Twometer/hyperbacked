@@ -3,14 +3,6 @@ use image::{DynamicImage, GrayImage};
 
 use crate::backup::BackupShare;
 
-pub fn print_pdfs(shares: &[BackupShare], name: &str) -> anyhow::Result<Vec<genpdf::Document>> {
-    let mut result = Vec::<genpdf::Document>::new();
-    for share in shares {
-        result.push(print_pdf(share, name, shares.len())?);
-    }
-    Ok(result)
-}
-
 pub fn print_pdf(
     share: &BackupShare,
     name: &str,

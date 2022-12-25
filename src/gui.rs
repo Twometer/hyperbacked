@@ -78,7 +78,7 @@ impl Application for HyperbackedApp {
     type Theme = iced::Theme;
     type Flags = ();
 
-    fn new(flags: Self::Flags) -> (Self, Command<Message>) {
+    fn new(_flags: Self::Flags) -> (Self, Command<Message>) {
         (HyperbackedApp::default(), Command::none())
     }
 
