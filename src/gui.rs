@@ -10,10 +10,16 @@ use iced::{
     },
     Alignment, Application, Color, Command, Element, Length, Theme,
 };
+use image::ImageBuffer;
+use nokhwa::{
+    pixel_format::RgbFormat,
+    utils::{CameraIndex, RequestedFormat, RequestedFormatType},
+    Camera,
+};
 use rfd::FileDialog;
 
 use crate::{
-    backup::{create_backup, BackupConfig, BackupShare},
+    backup::{create_backup, recover_backup, BackupConfig, BackupShare},
     crypto::Secret,
     passphrase::gen_passphrase,
     printer::print_pdf,
@@ -27,6 +33,9 @@ pub struct HyperbackedApp {
     backup_type: BackupType,
     generated_backup: Option<Vec<BackupShare>>,
     should_exit: bool,
+    is_scanning: bool,
+    scanned_codes: Vec<Vec<u8>>,
+    decoded_secret: String,
 }
 
 #[derive(Debug, Clone)]
@@ -36,6 +45,8 @@ pub enum AppPage {
     RestoreBackup,
     BackupGenerating,
     BackupResults,
+    DecodeSuccess,
+    DecodeFailure,
 }
 
 #[derive(Debug, Clone)]
@@ -50,6 +61,9 @@ pub enum Message {
     BackupCompleted(Option<Vec<BackupShare>>),
     SaveBackup(usize),
     End,
+    ScanCode,
+    ScanComplete(Option<String>),
+    DecodeSecrets,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -68,6 +82,9 @@ impl Default for HyperbackedApp {
             backup_type: BackupType::Standard,
             generated_backup: None,
             should_exit: false,
+            is_scanning: false,
+            scanned_codes: Vec::new(),
+            decoded_secret: Default::default(),
         }
     }
 }
@@ -173,6 +190,74 @@ impl Application for HyperbackedApp {
             Message::End => {
                 self.should_exit = true;
             }
+            Message::ScanCode => {
+                self.is_scanning = true;
+
+                return Command::perform(
+                    async {
+                        let mut camera = Camera::new(
+                            CameraIndex::Index(0),
+                            RequestedFormat::new::<RgbFormat>(
+                                RequestedFormatType::AbsoluteHighestResolution,
+                            ),
+                        )
+                        .unwrap();
+
+                        let decoder = bardecoder::default_decoder();
+
+                        loop {
+                            let frame = camera.frame().unwrap();
+                            let frame_img = frame.decode_image::<RgbFormat>().unwrap();
+
+                            let raw_img = frame_img.as_raw();
+
+                            let barcodes = decoder.decode(&image::DynamicImage::ImageRgb8(
+                                ImageBuffer::from_raw(
+                                    frame_img.width(),
+                                    frame_img.height(),
+                                    raw_img.to_owned(),
+                                )
+                                .unwrap(),
+                            ));
+
+                            let first_barcode = barcodes
+                                .iter()
+                                .map_while(|barcode| barcode.as_ref().ok())
+                                .nth(0);
+
+                            if let Some(barcode) = first_barcode {
+                                return Some(barcode.to_owned());
+                            }
+                        }
+                    },
+                    Message::ScanComplete,
+                );
+            }
+            Message::ScanComplete(str) => {
+                self.is_scanning = false;
+                if let Some(str) = str {
+                    let data = base85::decode(&str);
+                    if let Some(data) = data {
+                        self.scanned_codes.push(data);
+                    } else {
+                        println!("Failed to decode!");
+                    }
+                } else {
+                    println!("Failed to scan!");
+                }
+            }
+            Message::DecodeSecrets => {
+                let backup_secret = recover_backup(&self.scanned_codes, &self.passphrase);
+                match backup_secret {
+                    Ok(decoded) => {
+                        self.decoded_secret = decoded;
+                        self.page = AppPage::DecodeSuccess;
+                    }
+                    Err(_) => {
+                        self.page = AppPage::DecodeFailure;
+                    }
+                }
+            }
         }
         Command::none()
     }
@@ -187,6 +272,8 @@ impl Application for HyperbackedApp {
             AppPage::CreateBackup => self.create_backup_page(),
             AppPage::BackupGenerating => self.generating_page(),
             AppPage::BackupResults => self.backup_results_page(),
+            AppPage::RestoreBackup => self.recover_backup_page(),
+            AppPage::DecodeSuccess => self.decode_success_page(),
             _ => self.welcome_page(),
         };
 
@@ -210,6 +297,72 @@ impl HyperbackedApp {
             }
             Err(_) => String::new(),
         }
+    }
+
+    fn decode_success_page(&self) -> Element<Message> {
+        column![
+            text("Your decoded secret").size(30),
+            vertical_space(Length::Units(20)),
+            text(&self.decoded_secret),
+        ]
+        .align_items(Alignment::Center)
+        .into()
+    }
+
+    fn recover_backup_page(&self) -> Element<Message> {
+        let idle = row![
+            text("Please scan the QR codes from all secret shares"),
+            horizontal_space(Length::Fill),
+            button(text("Scan code"))
+                .padding(10)
+                .on_press(Message::ScanCode)
+        ];
+        let scanning = row![text(
+            "Looking for QR Codes. Please position the code in front of your camera!"
+        )];
+        let code_list = column(
+            self.scanned_codes
+                .iter()
+                .enumerate()
+                .map(|(num, code)| {
+                    container(text(format!(
+                        "Secret share #{} ({} bytes)",
+                        num + 1,
+                        code.len()
+                    )))
+                    .width(Length::Fill)
+                    .padding(10)
+                    .style(theme::Container::Box)
+                    .into()
+                })
+                .collect::<Vec<Element<Message>>>(),
+        )
+        .spacing(10);
+        column![
+            text("Recover a backup").size(30),
+            vertical_space(Length::Units(20)),
+            if self.is_scanning { scanning } else { idle },
+            vertical_space(Length::Units(20)),
+            scrollable(container(code_list).padding(10)),
+            vertical_space(Length::Fill),
+            row![
+                text("Passphrase "),
+                text("*").style(self.theme().palette().danger),
+            ],
+            text_input(
+                "Type a secure passphrase...",
+                &self.passphrase,
+                Message::PassphraseChanged
+            )
+            .padding(10)
+            .width(Length::Fill),
+            vertical_space(Length::Units(20)),
+            button("Decode")
+                .on_press(Message::DecodeSecrets)
+                .width(Length::Fill)
+        ]
+        .align_items(Alignment::Center)
+        .into()
     }
 
     fn backup_results_page(&self) -> Element<Message> {
@@ -246,7 +399,7 @@ impl HyperbackedApp {
                     .padding([10, 40])
                     .on_press(Message::End)
                     .style(theme::Button::Secondary),
-            ]
+            ],
         ]
         .align_items(Alignment::Center)
         .into()

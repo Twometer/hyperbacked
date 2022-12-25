@@ -35,7 +35,7 @@ pub fn create_backup(
     Ok(shares)
 }
 
-pub fn recover_backup(shares: &[&[u8]], password: &str) -> anyhow::Result<String> {
+pub fn recover_backup(shares: &[Vec<u8>], password: &str) -> anyhow::Result<String> {
     let sharks = Sharks(shares.len() as u8);
 
     let shares_decoded: Vec<Share> = shares
