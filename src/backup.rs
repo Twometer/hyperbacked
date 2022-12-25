@@ -7,6 +7,7 @@ pub struct BackupConfig {
     pub required_shares: u8,
 }
 
+#[derive(Clone, Debug)]
 pub struct BackupShare {
     pub number: usize,
     pub data: Vec<u8>,

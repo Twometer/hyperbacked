@@ -1,61 +1,21 @@
-use passphrase::gen_passphrase;
+use iced::{Application, Settings};
 
-use crate::{
-    backup::{create_backup, recover_backup},
-    crypto::Secret,
-};
+use crate::gui::HyperbackedApp;
 
 mod backup;
 mod crypto;
+mod gui;
 mod passphrase;
 mod printer;
 
 fn main() -> anyhow::Result<()> {
-    let pass1 = gen_passphrase(8);
-    let pass2 = gen_passphrase(8);
-    let pass3 = gen_passphrase(8);
-
-    let secrets = vec![
-        Secret {
-            value: "Hello world this is my personal secret number one",
-            password: &pass1,
+    HyperbackedApp::run(Settings {
+        window: iced::window::Settings {
+            size: (700, 550),
+            resizable: false,
+            ..Default::default()
         },
-        Secret {
-            value: "This is a decoy secret",
-            password: &pass2,
-        },
-        Secret {
-            value: "This is yet another decoy secret",
-            password: &pass3,
-        },
-    ];
-
-    println!("Passphrase 1: {}", pass1);
-    println!("Passphrase 2: {}", pass2);
-    println!("Passphrase 3: {}", pass3);
-
-    let backup = create_backup(
-        secrets,
-        backup::BackupConfig {
-            num_shares: 7,
-            required_shares: 4,
-        },
-    )?;
-
-    // Now, let's do some printing magic
-    let pdfs = printer::print_pdfs(&backup[..], "Test Backup 01")?;
-    let mut i = 0;
-    for pdf in pdfs {
-        pdf.render_to_file(format!("test-share-{}.pdf", i))?;
-        i += 1;
-    }
-
-    // And let's see if we can decode it again
-    let backup_shares: Vec<&[u8]> = backup.iter().map(|backup| &backup.data[..]).collect();
-
-    println!("Decoded 1: {}", recover_backup(&backup_shares, &pass1)?);
-    println!("Decoded 2: {}", recover_backup(&backup_shares, &pass2)?);
-    println!("Decoded 3: {}", recover_backup(&backup_shares, &pass3)?);
-
+        ..Default::default()
+    })?;
     Ok(())
 }

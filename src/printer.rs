@@ -11,7 +11,11 @@ pub fn print_pdfs(shares: &[BackupShare], name: &str) -> anyhow::Result<Vec<genp
     Ok(result)
 }
 
-fn print_pdf(share: &BackupShare, name: &str, total: usize) -> anyhow::Result<genpdf::Document> {
+pub fn print_pdf(
+    share: &BackupShare,
+    name: &str,
+    total: usize,
+) -> anyhow::Result<genpdf::Document> {
     let font = genpdf::fonts::FontData::new(include_bytes!("../res/OpenSans.ttf").to_vec(), None)?;
     let font_family = FontFamily {
         regular: font.clone(),

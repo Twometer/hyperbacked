@@ -10,6 +10,7 @@ const SALT_LEN: usize = 24;
 const NONCE_LEN: usize = 12;
 const HEADER_LEN: usize = NONCE_LEN + 20;
 
+#[derive(Clone)]
 pub struct Secret<'a> {
     pub value: &'a str,
     pub password: &'a str,

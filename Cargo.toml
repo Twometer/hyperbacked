@@ -16,3 +16,6 @@ sharks = "0.5"
 qrcode-generator = "4.1"
 genpdf = { version = "0.2", features = ["images"] }
 image = "0.23"
+iced = { version = "0.6", default-features = false, features = ["glow"] }
+zxcvbn = "2.2"
+rfd = "0.10"
