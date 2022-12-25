@@ -7,6 +7,7 @@ mod crypto;
 mod gui;
 mod passphrase;
 mod printer;
+mod qrcode;
 
 fn main() -> anyhow::Result<()> {
     HyperbackedApp::run(Settings {

@@ -1,7 +1,7 @@
 use genpdf::{fonts::FontFamily, Alignment, Element, Margins};
 use image::{DynamicImage, GrayImage};
 
-use crate::backup::BackupShare;
+use crate::{backup::BackupShare, qrcode::qrcode_encode};
 
 pub fn print_pdf(
     share: &BackupShare,
@@ -30,9 +30,7 @@ pub fn print_pdf(
             .padded(genpdf::Margins::vh(1, 0)),
     );
 
-    let data_ascii = base85::encode(&share.data);
-    let qrcode_data =
-        qrcode_generator::to_image(&data_ascii, qrcode_generator::QrCodeEcc::Medium, 1024)?;
+    let qrcode_data = qrcode_encode(&share.data)?;
     let qrcode_image = GrayImage::from_raw(1024, 1024, qrcode_data).unwrap();
     layout.push(
         genpdf::elements::Image::from_dynamic_image(DynamicImage::ImageLuma8(qrcode_image))?

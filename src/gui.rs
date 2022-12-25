@@ -23,6 +23,7 @@ use crate::{
     crypto::Secret,
     passphrase::gen_passphrase,
     printer::print_pdf,
+    qrcode::qrcode_decode,
 };
 
 pub struct HyperbackedApp {
@@ -236,7 +237,7 @@ impl Application for HyperbackedApp {
             Message::ScanComplete(str) => {
                 self.is_scanning = false;
                 if let Some(str) = str {
-                    let data = base85::decode(&str);
+                    let data = qrcode_decode(&str);
                     if let Some(data) = data {
                         self.scanned_codes.push(data);
                     } else {
@@ -311,12 +312,13 @@ impl HyperbackedApp {
 
     fn recover_backup_page(&self) -> Element<Message> {
         let idle = row![
-            text("Please scan the QR codes from all secret shares"),
+            text("Please scan the QR codes from all required secret shares"),
             horizontal_space(Length::Fill),
             button(text("Scan code"))
                 .padding(10)
                 .on_press(Message::ScanCode)
-        ];
+        ]
+        .align_items(Alignment::Center);
         let scanning = row![text(
             "Looking for QR Codes. Please position the code in front of your camera!"
         )];
@@ -345,21 +347,31 @@ impl HyperbackedApp {
             vertical_space(Length::Units(20)),
             scrollable(container(code_list).padding(10)),
             vertical_space(Length::Fill),
-            row![
-                text("Passphrase "),
-                text("*").style(self.theme().palette().danger),
+            column![
+                row![
+                    text("Passphrase "),
+                    text("*").style(self.theme().palette().danger),
+                ],
+                vertical_space(Length::Units(10)),
+                text_input(
+                    "Enter the passphrase...",
+                    &self.passphrase,
+                    Message::PassphraseChanged
+                )
+                .padding(10)
+                .width(Length::Fill),
             ],
-            text_input(
-                "Type a secure passphrase...",
-                &self.passphrase,
-                Message::PassphraseChanged
-            )
-            .padding(10)
-            .width(Length::Fill),
             vertical_space(Length::Units(20)),
-            button("Decode")
-                .on_press(Message::DecodeSecrets)
-                .width(Length::Fill)
+            row![
+                button(text("Back"))
+                    .padding([10, 40])
+                    .on_press(Message::SwitchPage(AppPage::Welcome))
+                    .style(theme::Button::Secondary),
+                horizontal_space(Length::Fill),
+                button(text("Decrypt"))
+                    .padding([10, 40])
+                    .on_press(Message::DecodeSecrets)
+            ]
         ]
         .align_items(Alignment::Center)
         .into()
