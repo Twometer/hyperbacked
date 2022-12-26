@@ -1,12 +1,14 @@
 use genpdf::{fonts::FontFamily, Alignment, Element, Margins};
 use image::{DynamicImage, GrayImage};
 
-use crate::{backup::BackupShare, qrcode::qrcode_encode};
+use crate::{backup::BackupShard, qrcode::qrcode_encode};
+
+const QRCODE_SIZE: u32 = 1024;
 
 pub fn print_pdf(
-    share: &BackupShare,
-    name: &str,
-    total: usize,
+    shard: &BackupShard,
+    backup_name: &str,
+    total_shards: usize,
 ) -> anyhow::Result<genpdf::Document> {
     let font = genpdf::fonts::FontData::new(include_bytes!("../res/OpenSans.ttf").to_vec(), None)?;
     let font_family = FontFamily {
@@ -16,7 +18,7 @@ pub fn print_pdf(
         bold_italic: font,
     };
     let mut doc = genpdf::Document::new(font_family);
-    doc.set_title("Backup");
+    doc.set_title(backup_name);
 
     let mut decorator = genpdf::SimplePageDecorator::new();
     decorator.set_margins(10);
@@ -25,13 +27,14 @@ pub fn print_pdf(
     let mut layout = genpdf::elements::LinearLayout::vertical();
 
     layout.push(
-        genpdf::elements::Paragraph::new(format!("{}/{}", share.number, total))
+        genpdf::elements::Paragraph::new(format!("{}/{}", shard.number, total_shards))
             .aligned(Alignment::Center)
             .padded(genpdf::Margins::vh(1, 0)),
     );
 
-    let qrcode_data = qrcode_encode(&share.data)?;
-    let qrcode_image = GrayImage::from_raw(1024, 1024, qrcode_data).unwrap();
+    let qrcode_data = qrcode_encode(&shard.data, QRCODE_SIZE as usize)?;
+    let qrcode_image = GrayImage::from_raw(QRCODE_SIZE, QRCODE_SIZE, qrcode_data)
+        .expect("QR Code generator created invalid image");
     layout.push(
         genpdf::elements::Image::from_dynamic_image(DynamicImage::ImageLuma8(qrcode_image))?
             .with_alignment(Alignment::Center)
@@ -39,7 +42,7 @@ pub fn print_pdf(
     );
 
     layout.push(
-        genpdf::elements::Paragraph::new(name)
+        genpdf::elements::Paragraph::new(backup_name)
             .aligned(Alignment::Center)
             .padded(genpdf::Margins::vh(1, 0)),
     );

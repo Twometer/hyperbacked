@@ -10,20 +10,15 @@ use iced::{
     },
     Alignment, Application, Color, Command, Element, Length, Theme,
 };
-use image::ImageBuffer;
-use nokhwa::{
-    pixel_format::RgbFormat,
-    utils::{CameraIndex, RequestedFormat, RequestedFormatType},
-    Camera,
-};
+
 use rfd::FileDialog;
 
 use crate::{
-    backup::{create_backup, recover_backup, BackupConfig, BackupShare},
+    backup::{create_backup, recover_backup, BackupConfig, BackupShard},
     crypto::Secret,
     passphrase::gen_passphrase,
     printer::print_pdf,
-    qrcode::qrcode_decode,
+    qrcode::qrcode_scan,
 };
 
 pub struct HyperbackedApp {
@@ -32,7 +27,7 @@ pub struct HyperbackedApp {
     passphrase: String,
     label: String,
     backup_type: BackupType,
-    generated_backup: Option<Vec<BackupShare>>,
+    generated_backup: Option<Vec<BackupShard>>,
     should_exit: bool,
     is_scanning: bool,
     scanned_codes: Vec<Vec<u8>>,
@@ -59,11 +54,11 @@ pub enum Message {
     CreateBackup,
     LabelChanged(String),
     BackupTypeChanged(BackupType),
-    BackupCompleted(Option<Vec<BackupShare>>),
+    BackupCompleted(Option<Vec<BackupShard>>),
     SaveBackup(usize),
     End,
     ScanCode,
-    ScanComplete(Option<String>),
+    ScanComplete(Option<Vec<u8>>),
     DecodeSecrets,
 }
 
@@ -142,24 +137,7 @@ impl Application for HyperbackedApp {
                             password: passphrase.as_str(),
                         }];
 
-                        let required_shares = match backup_type {
-                            BackupType::Standard => 1,
-                            BackupType::Distributed { min, .. } => min,
-                        };
-
-                        let num_shares = match backup_type {
-                            BackupType::Standard => 1,
-                            BackupType::Distributed { max, .. } => max,
-                        };
-
-                        return create_backup(
-                            secrets.to_vec(),
-                            BackupConfig {
-                                required_shares,
-                                num_shares,
-                            },
-                        )
-                        .ok();
+                        return create_backup(secrets.to_vec(), backup_type.to_config()).ok();
                     },
                     Message::BackupCompleted,
                 );
@@ -175,14 +153,16 @@ impl Application for HyperbackedApp {
                 self.page = AppPage::BackupResults;
             }
             Message::SaveBackup(num) => {
-                let file = FileDialog::new().add_filter("pdf", &["pdf"]).save_file();
+                let file = FileDialog::new()
+                    .add_filter("PDF Files", &["pdf"])
+                    .save_file();
                 if let Some(file) = file {
                     let backup = self.generated_backup.as_ref().unwrap();
 
                     let share = backup
                         .iter()
                         .find(|backup| backup.number == num)
-                        .expect("Could not find backup to save");
+                        .expect("Backup shard for saving must be defined at this point.");
 
                     let pdf_data = print_pdf(share, &self.label, backup.len()).unwrap();
                     pdf_data.render_to_file(file).unwrap();
@@ -193,58 +173,14 @@ impl Application for HyperbackedApp {
             }
             Message::ScanCode => {
                 self.is_scanning = true;
-
-                return Command::perform(
-                    async {
-                        let mut camera = Camera::new(
-                            CameraIndex::Index(0),
-                            RequestedFormat::new::<RgbFormat>(
-                                RequestedFormatType::AbsoluteHighestResolution,
-                            ),
-                        )
-                        .unwrap();
-
-                        let decoder = bardecoder::default_decoder();
-
-                        loop {
-                            let frame = camera.frame().unwrap();
-                            let frame_img = frame.decode_image::<RgbFormat>().unwrap();
-
-                            let raw_img = frame_img.as_raw();
-
-                            let barcodes = decoder.decode(&image::DynamicImage::ImageRgb8(
-                                ImageBuffer::from_raw(
-                                    frame_img.width(),
-                                    frame_img.height(),
-                                    raw_img.to_owned(),
-                                )
-                                .unwrap(),
-                            ));
-
-                            let first_barcode = barcodes
-                                .iter()
-                                .map_while(|barcode| barcode.as_ref().ok())
-                                .nth(0);
-
-                            if let Some(barcode) = first_barcode {
-                                return Some(barcode.to_owned());
-                            }
-                        }
-                    },
-                    Message::ScanComplete,
-                );
+                return Command::perform(async { qrcode_scan().ok() }, Message::ScanComplete);
             }
-            Message::ScanComplete(str) => {
+            Message::ScanComplete(data) => {
                 self.is_scanning = false;
-                if let Some(str) = str {
-                    let data = qrcode_decode(&str);
-                    if let Some(data) = data {
-                        self.scanned_codes.push(data);
-                    } else {
-                        println!("Failed to decode!");
-                    }
+                if let Some(data) = data {
+                    self.scanned_codes.push(data);
                 } else {
-                    println!("Failed to scan!");
+                    eprintln!("Failed to scan code!");
                 }
             }
             Message::DecodeSecrets => {
@@ -275,7 +211,7 @@ impl Application for HyperbackedApp {
             AppPage::BackupResults => self.backup_results_page(),
             AppPage::RestoreBackup => self.recover_backup_page(),
             AppPage::DecodeSuccess => self.decode_success_page(),
-            _ => self.welcome_page(),
+            AppPage::DecodeFailure => self.decode_failure_page(),
         };
 
         container(page)
@@ -300,11 +236,28 @@ impl HyperbackedApp {
         }
     }
 
+    fn decode_failure_page(&self) -> Element<Message> {
+        column![
+            text("Failed to decrypt!").size(30),
+            vertical_space(Length::Units(20)),
+            text("Please make sure that you provided enough backup shards, and that the passphrase is correct.").horizontal_alignment(Horizontal::Center),
+            vertical_space(Length::Units(20)),
+            button("Try again").padding([10, 20]).on_press(Message::SwitchPage(AppPage::RestoreBackup)),
+        ]
+        .align_items(Alignment::Center)
+        .into()
+    }
+
     fn decode_success_page(&self) -> Element<Message> {
         column![
-            text("Your decoded secret").size(30),
+            text("Your decrypted secret").size(30),
             vertical_space(Length::Units(20)),
-            text(&self.decoded_secret),
+            scrollable(
+                container(text(&self.decoded_secret))
+                    .padding(10)
+                    .style(theme::Container::Box)
+            )
+            .height(Length::Fill),
         ]
         .align_items(Alignment::Center)
         .into()
@@ -320,7 +273,7 @@ impl HyperbackedApp {
         ]
         .align_items(Alignment::Center);
         let scanning = row![text(
-            "Looking for QR Codes. Please position the code in front of your camera!"
+            "Scanning for QR Codes. Please position the code in front of your camera."
         )];
         let code_list = column(
             self.scanned_codes
@@ -371,6 +324,7 @@ impl HyperbackedApp {
                 button(text("Decrypt"))
                     .padding([10, 40])
                     .on_press(Message::DecodeSecrets)
+                    .style(theme::Button::Positive)
             ]
         ]
         .align_items(Alignment::Center)
@@ -379,15 +333,15 @@ impl HyperbackedApp {
 
     fn backup_results_page(&self) -> Element<Message> {
         let task_list = match &self.generated_backup {
-            Some(shares) if shares.len() > 0 => column(
-                shares
+            Some(shards) if shards.len() > 0 => column(
+                shards
                     .iter()
-                    .map(|share| {
+                    .map(|shard| {
                         container(
                             row![
-                                text(format!("Share #{}", share.number)),
+                                text(format!("Shard #{}", shard.number)),
                                 horizontal_space(Length::Fill),
-                                button(text("Save")).on_press(Message::SaveBackup(share.number))
+                                button(text("Save")).on_press(Message::SaveBackup(shard.number))
                             ]
                             .padding(10)
                             .align_items(Alignment::Center),
@@ -403,16 +357,20 @@ impl HyperbackedApp {
         column![
             text("Your backup shards").size(30),
             vertical_space(Length::Units(20)),
-            text("You can export each of the shards below as a PDF and distribute them to trusted people."),
+            text("You can export each of the shards below as a PDF and distribute them to trusted people. Only the number of shards configured on the last page is required to recover the backup."),
             vertical_space(Length::Units(20)),
             scrollable(container(task_list).padding(20)),
             vertical_space(Length::Fill),
             row![
+                button("Home")
+                    .padding([10, 40])
+                    .on_press(Message::SwitchPage(AppPage::Welcome))
+                    .style(theme::Button::Secondary),
                 horizontal_space(Length::Fill),
-                button("Finish")
+                button("Exit")
                     .padding([10, 40])
                     .on_press(Message::End)
-                    .style(theme::Button::Secondary),
+                    .style(theme::Button::Primary),
             ],
         ]
         .align_items(Alignment::Center)
@@ -430,7 +388,9 @@ impl HyperbackedApp {
     }
 
     fn create_backup_page(&self) -> Element<Message> {
-        let mut next_button = button("Encrypt").padding([10, 40]);
+        let mut next_button = button("Encrypt")
+            .padding([10, 40])
+            .style(theme::Button::Positive);
         if !self.passphrase.trim().is_empty() && !self.secret.trim().is_empty() {
             next_button = next_button.on_press(Message::CreateBackup)
         }
@@ -547,6 +507,23 @@ impl BackupType {
         BackupType::Distributed { min: 3, max: 5 },
         BackupType::Distributed { min: 4, max: 7 },
     ];
+
+    fn to_config(&self) -> BackupConfig {
+        let min_shards = match *self {
+            BackupType::Standard => 1,
+            BackupType::Distributed { min, .. } => min,
+        };
+
+        let total_shards = match *self {
+            BackupType::Standard => 1,
+            BackupType::Distributed { max, .. } => max,
+        };
+
+        return BackupConfig {
+            total_shards,
+            min_shards,
+        };
+    }
 }
 
 impl Display for BackupType {

@@ -130,7 +130,7 @@ pub fn decrypt_secret(ciphertext: &[u8], password: &str) -> anyhow::Result<Strin
         panic!("Invalid number of headers found: {}", found_headers.len())
     }
 
-    let header = found_headers.first().unwrap();
+    let header = &found_headers[0];
 
     let mut body_ciphertext =
         BytesMut::from(&ciphertext[header.position..header.position + header.length]);

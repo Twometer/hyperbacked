@@ -4,6 +4,7 @@ use crate::gui::HyperbackedApp;
 
 mod backup;
 mod crypto;
+mod errors;
 mod gui;
 mod passphrase;
 mod printer;

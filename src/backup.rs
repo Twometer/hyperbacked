@@ -1,14 +1,17 @@
 use sharks::{Share, Sharks};
 
-use crate::crypto::{decrypt_secret, encrypt_secrets, Secret};
+use crate::{
+    crypto::{decrypt_secret, encrypt_secrets, Secret},
+    errors::BackupError,
+};
 
 pub struct BackupConfig {
-    pub num_shares: u8,
-    pub required_shares: u8,
+    pub total_shards: u8,
+    pub min_shards: u8,
 }
 
 #[derive(Clone, Debug)]
-pub struct BackupShare {
+pub struct BackupShard {
     pub number: usize,
     pub data: Vec<u8>,
 }
@@ -16,33 +19,34 @@ pub struct BackupShare {
 pub fn create_backup(
     secrets: Vec<Secret>,
     config: BackupConfig,
-) -> anyhow::Result<Vec<BackupShare>> {
+) -> anyhow::Result<Vec<BackupShard>> {
     let ciphertext = encrypt_secrets(secrets)?;
 
-    // Shamir secret sharing
-    let sharks = Sharks(config.required_shares);
+    // Split ciphertext into shards using Shamir's secret sharing (Sharks)
+    let sharks = Sharks(config.min_shards);
     let dealer = sharks.dealer(&ciphertext);
-    let mut shares = Vec::<BackupShare>::new();
+    let mut shards = Vec::<BackupShard>::new();
 
-    for (index, share) in dealer.take(config.num_shares as usize).enumerate() {
-        let share_data = Vec::from(&share);
-        shares.push(BackupShare {
+    for (index, share) in dealer.take(config.total_shards as usize).enumerate() {
+        shards.push(BackupShard {
             number: index + 1,
-            data: share_data,
-        })
+            data: Vec::from(&share),
+        });
     }
 
-    Ok(shares)
+    Ok(shards)
 }
 
-pub fn recover_backup(shares: &[Vec<u8>], password: &str) -> anyhow::Result<String> {
-    let sharks = Sharks(shares.len() as u8);
+pub fn recover_backup(shards: &[Vec<u8>], password: &str) -> anyhow::Result<String> {
+    let sharks = Sharks(shards.len() as u8);
 
-    let shares_decoded: Vec<Share> = shares
+    let shares_decoded: Vec<Share> = shards
         .iter()
-        .filter_map(|share| Share::try_from(&share[..]).ok())
+        .filter_map(|shard| Share::try_from(&shard[..]).ok())
         .collect();
 
-    let ciphertext = sharks.recover(&shares_decoded[..]).unwrap();
+    let ciphertext = sharks
+        .recover(&shares_decoded[..])
+        .map_err(|e| BackupError::SharksError(e.to_owned()))?;
     decrypt_secret(&ciphertext, password)
 }
