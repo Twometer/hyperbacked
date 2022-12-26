@@ -16,10 +16,11 @@ it can be distributed across many trusted people, with only a configurable subse
 
 An example of encrypting a secret using 2/3 secret sharing:
 
-![Encryption](./media/encrypt.mp4)
+https://user-images.githubusercontent.com/26793103/209542520-5d198371-0cc4-49ba-b98b-73fd10b25628.mp4
 
 ## Decryption
 
 An example of decryption the secret created in the previous video, with only 2 of the 3 generated shards:
 
-![Encryption](./media/decrypt.mp4)
+https://user-images.githubusercontent.com/26793103/209542512-00f8c6d2-5981-4ca5-9afd-e7135a3e1395.mp4
+
