@@ -14,3 +14,20 @@ impl fmt::Display for BackupError {
 }
 
 impl error::Error for BackupError {}
+
+#[derive(Debug)]
+pub enum CryptoError {
+    InvalidNumberOfHeaders(usize),
+}
+
+impl fmt::Display for CryptoError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match &self {
+            CryptoError::InvalidNumberOfHeaders(num) => {
+                write!(f, "Invalid number of headers in ciphertext: {}", num)
+            }
+        }
+    }
+}
+
+impl error::Error for CryptoError {}

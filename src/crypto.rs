@@ -6,6 +6,8 @@ use bytes::{Buf, BufMut, BytesMut};
 use pbkdf2::{password_hash::PasswordHasher, Pbkdf2};
 use rand::{thread_rng, Rng, RngCore};
 
+use crate::errors::CryptoError;
+
 const SALT_LEN: usize = 24;
 const NONCE_LEN: usize = 12;
 const HEADER_LEN: usize = NONCE_LEN + 20;
@@ -127,7 +129,7 @@ pub fn decrypt_secret(ciphertext: &[u8], password: &str) -> anyhow::Result<Strin
     }
 
     if found_headers.len() != 1 {
-        panic!("Invalid number of headers found: {}", found_headers.len())
+        return Err(CryptoError::InvalidNumberOfHeaders(found_headers.len()).into());
     }
 
     let header = &found_headers[0];
