@@ -18,6 +18,7 @@ pub fn qrcode_scan() -> anyhow::Result<Vec<u8>> {
         CameraIndex::Index(0),
         RequestedFormat::new::<RgbFormat>(RequestedFormatType::AbsoluteHighestResolution),
     )?;
+    camera.open_stream()?;
 
     let decoder = bardecoder::default_decoder();
 
