@@ -22,3 +22,4 @@ rfd = "0.10"
 nokhwa = { version = "0.10", features = ["input-native"] }
 bardecoder = "0.4"
 base85 = "1.1"
+chrono = "0.4.11"
