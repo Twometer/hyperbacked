@@ -156,10 +156,10 @@ impl Application for HyperbackedApp {
             Message::SaveBackup(num) => {
                 let current_date = Local::now().format("%Y-%m-%d").to_string();
                 let default_filename = if self.backup_type == BackupType::Standard {
-                    current_date + "_shard_1_of_1" + ".pdf"
+                    format!("{}_shard_1_of_1.pdf", current_date)
                 } else {
                     let total = self.backup_type.to_config().total_shards;
-                    current_date + "_shard_" + &num.to_string() + "_of_" + &total.to_string() + ".pdf"
+                    format!("{}_shard_{}_of_{}.pdf", current_date, &num, &total)
                 };
 
                 let file = FileDialog::new()
