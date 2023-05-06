@@ -1,4 +1,5 @@
 use std::fmt::Display;
+use chrono::Local;
 
 use iced::{
     alignment::Horizontal,
@@ -153,8 +154,17 @@ impl Application for HyperbackedApp {
                 self.page = AppPage::BackupResults;
             }
             Message::SaveBackup(num) => {
+                let current_date = Local::now().format("%Y-%m-%d").to_string();
+                let default_filename = if self.backup_type == BackupType::Standard {
+                    format!("{}_shard_1_of_1.pdf", current_date)
+                } else {
+                    let total = self.backup_type.to_config().total_shards;
+                    format!("{}_shard_{}_of_{}.pdf", current_date, &num, &total)
+                };
+
                 let file = FileDialog::new()
                     .add_filter("PDF Files", &["pdf"])
+                    .set_file_name(default_filename.as_str())
                     .save_file();
                 if let Some(file) = file {
                     let backup = self.generated_backup.as_ref().unwrap();
