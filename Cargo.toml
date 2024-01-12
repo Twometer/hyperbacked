@@ -20,6 +20,6 @@ iced = { version = "0.6", default-features = false, features = ["glow"] }
 zxcvbn = "2.2"
 rfd = "0.10"
 nokhwa = { version = "0.10", features = ["input-native"] }
-bardecoder = "0.4"
+bardecoder = "0.4.2"
 base85 = "1.1"
 chrono = "0.4.11"
